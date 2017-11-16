@@ -1,7 +1,11 @@
+
+#[macro_use]
+extern crate lazy_static;
 extern crate libc;
 
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
+use std::sync::RwLock;
 
 pub struct Message {
     pub action: String,
@@ -24,7 +28,37 @@ pub struct Client {
 
 pub struct Response;
 
-static mut registered: HashMap<String, Box<Fn(&Message, &Client) -> Response>> = HashMap::new();
+type ScampFn = *const fn(&Message, &Client);
+
+#[derive(Default)]
+struct Registry {
+    map: RwLock<HashMap<String, ScampFn>>,
+}
+
+unsafe impl Send for Registry { }
+unsafe impl Sync for Registry { }
+
+impl Registry {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn insert(&self, action: String, method: ScampFn) {
+        if let Ok(mut locked) = self.map.write() {
+            locked.insert(action, method);
+        }
+    }
+
+    pub fn call(&self, action: String, message: &Message) {
+        if let Ok(locked) = self.map.read() {
+            
+        }
+    }
+}
+
+lazy_static! {
+    static ref REGISTERED: Registry = Registry::default();
+}
 
 #[no_mangle]
 pub extern "C" fn hello(name: *const libc::c_char) {
@@ -36,11 +70,11 @@ pub extern "C" fn hello(name: *const libc::c_char) {
 pub extern "C" fn register(action: *const libc::c_char, function: *const libc::c_void) {
     let buf_name = unsafe { CStr::from_ptr(action).to_bytes() };
     let action_name = String::from_utf8(buf_name.to_vec()).unwrap();
-    let fn_ptr = Box::new(function as *const fn(&Message, &Client) -> Response);
-    let casted = fn_ptr as Box<Fn(&Message, &Client) -> Response>;
-    //let trait_ptr = fn_ptr as *const Fn(&Message, &Client) -> Response;
-    /*
-    registered.insert(action_name, Box::new(function as *const () as *const Fn(&Message, &Client) -> Response) as Box<Fn(&Message, &Client) -> Response>);
-    */
+    let fn_ptr = function as ScampFn;
+    REGISTERED.insert(action_name, fn_ptr);
+}
+
+pub extern "C" fn call(action: *const libc::c_char, message: Message) {
+
 }
 
