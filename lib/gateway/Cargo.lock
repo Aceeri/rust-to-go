@@ -1,5 +1,5 @@
 [[package]]
-name = "hello"
+name = "interfacerust"
 version = "0.1.0"
 dependencies = [
  "lazy_static 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",

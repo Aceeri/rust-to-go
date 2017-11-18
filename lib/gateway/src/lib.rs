@@ -26,9 +26,10 @@ pub struct Client {
     pub blah: u64,
 }
 
-pub struct Response;
-
-type ScampFn = *const fn(&Message, &Client);
+pub enum ScampFn {
+    External(extern fn(CString) -> isize),
+    Internal(Box<Fn(&String) -> isize>),
+}
 
 #[derive(Default)]
 struct Registry {
@@ -67,10 +68,12 @@ pub extern "C" fn hello(name: *const libc::c_char) {
     println!("Hello {}!", str_name);
 }
 
-pub extern "C" fn register(action: *const libc::c_char, function: *const libc::c_void) {
+#[no_mangle]
+#[link="interfacerust"]
+pub extern "C" fn interface_register(action: *const libc::c_char, function: extern fn(CString) -> isize) {
     let buf_name = unsafe { CStr::from_ptr(action).to_bytes() };
     let action_name = String::from_utf8(buf_name.to_vec()).unwrap();
-    let fn_ptr = function as ScampFn;
+    let fn_ptr = ScampFn::External(function);
     REGISTERED.insert(action_name, fn_ptr);
 }
 

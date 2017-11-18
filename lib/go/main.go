@@ -1,17 +1,12 @@
 package main
 
 /*
-#cgo LDFLAGS: -L . -lgateway
-#include "./gateway.h"
+#cgo LDFLAGS: -L ../../build -lgateway
+#include "../../build/gateway.h"
 
 int call_go_func_fwd(char* id);
 */
 import "C"
-
-import (
-	"fmt"
-	"unsafe"
-)
 
 //export call_go_func
 func call_go_func(id *C.char) int {
