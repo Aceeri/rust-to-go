@@ -26,13 +26,13 @@ pub struct Client {
     pub blah: u64,
 }
 
-pub struct Response;
-
-type ScampFn = *const fn(&Message, &Client);
-
 #[derive(Default)]
 struct Registry {
     map: RwLock<HashMap<String, ScampFn>>,
+}
+
+enum ScampFn {
+    External(extern fn(CString) -> isize),
 }
 
 unsafe impl Send for Registry { }
@@ -49,10 +49,20 @@ impl Registry {
         }
     }
 
-    pub fn call(&self, action: String, message: &Message) {
+    pub fn call(&self, action: String, message: String) -> Option<isize> {
         if let Ok(locked) = self.map.read() {
-            
+            match locked.get(&action) {
+                Some(&ScampFn::External(fnptr)) => {
+                    let input = CString::new(message).unwrap();
+                    unsafe {
+                        return Some(fnptr(input));
+                    }
+                },
+                _ => unimplemented!(),
+            }
         }
+
+        None
     }
 }
 
@@ -67,14 +77,23 @@ pub extern "C" fn hello(name: *const libc::c_char) {
     println!("Hello {}!", str_name);
 }
 
-pub extern "C" fn register(action: *const libc::c_char, function: *const libc::c_void) {
+#[no_mangle]
+pub extern "C" fn register_action(action: *const libc::c_char, function: extern fn(CString) -> isize) {
     let buf_name = unsafe { CStr::from_ptr(action).to_bytes() };
     let action_name = String::from_utf8(buf_name.to_vec()).unwrap();
-    let fn_ptr = function as ScampFn;
-    REGISTERED.insert(action_name, fn_ptr);
+    REGISTERED.insert(action_name, ScampFn::External(function));
 }
 
-pub extern "C" fn call(action: *const libc::c_char, message: Message) {
+#[no_mangle]
+pub extern "C" fn call_action(action: *const libc::c_char, input: *const libc::c_char) {
+    let buf_name = unsafe { CStr::from_ptr(action).to_bytes() };
+    let action_name = String::from_utf8(buf_name.to_vec()).unwrap();
 
+    /* ignoring the input for now, just sending the action name as input
+    let buf_input = unsafe { CStr::from_ptr(input).to_bytes() };
+    let input = String::from_utf8(buf_input.to_vec()).unwrap();
+    */
+
+    REGISTERED.call(action_name.clone(), action_name);
 }
 
